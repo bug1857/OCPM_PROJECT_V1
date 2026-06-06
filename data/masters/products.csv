@@ -1,0 +1,501 @@
+product_id,product_name,category
+P001,Product_1,Raw Material
+P002,Product_2,Raw Material
+P003,Product_3,Component
+P004,Product_4,Component
+P005,Product_5,Finished Goods
+P006,Product_6,Finished Goods
+P007,Product_7,Finished Goods
+P008,Product_8,Finished Goods
+P009,Product_9,Raw Material
+P010,Product_10,Raw Material
+P011,Product_11,Finished Goods
+P012,Product_12,Raw Material
+P013,Product_13,Component
+P014,Product_14,Raw Material
+P015,Product_15,Component
+P016,Product_16,Raw Material
+P017,Product_17,Raw Material
+P018,Product_18,Raw Material
+P019,Product_19,Finished Goods
+P020,Product_20,Component
+P021,Product_21,Finished Goods
+P022,Product_22,Finished Goods
+P023,Product_23,Finished Goods
+P024,Product_24,Raw Material
+P025,Product_25,Finished Goods
+P026,Product_26,Finished Goods
+P027,Product_27,Component
+P028,Product_28,Finished Goods
+P029,Product_29,Finished Goods
+P030,Product_30,Component
+P031,Product_31,Finished Goods
+P032,Product_32,Raw Material
+P033,Product_33,Finished Goods
+P034,Product_34,Finished Goods
+P035,Product_35,Raw Material
+P036,Product_36,Finished Goods
+P037,Product_37,Component
+P038,Product_38,Raw Material
+P039,Product_39,Raw Material
+P040,Product_40,Raw Material
+P041,Product_41,Component
+P042,Product_42,Raw Material
+P043,Product_43,Finished Goods
+P044,Product_44,Finished Goods
+P045,Product_45,Raw Material
+P046,Product_46,Raw Material
+P047,Product_47,Raw Material
+P048,Product_48,Component
+P049,Product_49,Component
+P050,Product_50,Raw Material
+P051,Product_51,Raw Material
+P052,Product_52,Component
+P053,Product_53,Component
+P054,Product_54,Finished Goods
+P055,Product_55,Finished Goods
+P056,Product_56,Component
+P057,Product_57,Raw Material
+P058,Product_58,Finished Goods
+P059,Product_59,Component
+P060,Product_60,Component
+P061,Product_61,Finished Goods
+P062,Product_62,Finished Goods
+P063,Product_63,Raw Material
+P064,Product_64,Raw Material
+P065,Product_65,Finished Goods
+P066,Product_66,Raw Material
+P067,Product_67,Component
+P068,Product_68,Raw Material
+P069,Product_69,Finished Goods
+P070,Product_70,Component
+P071,Product_71,Raw Material
+P072,Product_72,Component
+P073,Product_73,Finished Goods
+P074,Product_74,Component
+P075,Product_75,Finished Goods
+P076,Product_76,Raw Material
+P077,Product_77,Component
+P078,Product_78,Component
+P079,Product_79,Component
+P080,Product_80,Component
+P081,Product_81,Raw Material
+P082,Product_82,Component
+P083,Product_83,Raw Material
+P084,Product_84,Component
+P085,Product_85,Raw Material
+P086,Product_86,Raw Material
+P087,Product_87,Finished Goods
+P088,Product_88,Component
+P089,Product_89,Raw Material
+P090,Product_90,Raw Material
+P091,Product_91,Component
+P092,Product_92,Raw Material
+P093,Product_93,Raw Material
+P094,Product_94,Component
+P095,Product_95,Finished Goods
+P096,Product_96,Finished Goods
+P097,Product_97,Finished Goods
+P098,Product_98,Raw Material
+P099,Product_99,Component
+P100,Product_100,Component
+P101,Product_101,Raw Material
+P102,Product_102,Raw Material
+P103,Product_103,Component
+P104,Product_104,Raw Material
+P105,Product_105,Finished Goods
+P106,Product_106,Raw Material
+P107,Product_107,Raw Material
+P108,Product_108,Finished Goods
+P109,Product_109,Finished Goods
+P110,Product_110,Finished Goods
+P111,Product_111,Component
+P112,Product_112,Component
+P113,Product_113,Component
+P114,Product_114,Finished Goods
+P115,Product_115,Finished Goods
+P116,Product_116,Finished Goods
+P117,Product_117,Finished Goods
+P118,Product_118,Component
+P119,Product_119,Component
+P120,Product_120,Component
+P121,Product_121,Component
+P122,Product_122,Component
+P123,Product_123,Component
+P124,Product_124,Raw Material
+P125,Product_125,Raw Material
+P126,Product_126,Component
+P127,Product_127,Finished Goods
+P128,Product_128,Raw Material
+P129,Product_129,Component
+P130,Product_130,Raw Material
+P131,Product_131,Raw Material
+P132,Product_132,Raw Material
+P133,Product_133,Raw Material
+P134,Product_134,Component
+P135,Product_135,Finished Goods
+P136,Product_136,Raw Material
+P137,Product_137,Raw Material
+P138,Product_138,Component
+P139,Product_139,Raw Material
+P140,Product_140,Raw Material
+P141,Product_141,Component
+P142,Product_142,Raw Material
+P143,Product_143,Finished Goods
+P144,Product_144,Component
+P145,Product_145,Raw Material
+P146,Product_146,Finished Goods
+P147,Product_147,Raw Material
+P148,Product_148,Finished Goods
+P149,Product_149,Raw Material
+P150,Product_150,Raw Material
+P151,Product_151,Raw Material
+P152,Product_152,Finished Goods
+P153,Product_153,Component
+P154,Product_154,Finished Goods
+P155,Product_155,Raw Material
+P156,Product_156,Finished Goods
+P157,Product_157,Finished Goods
+P158,Product_158,Component
+P159,Product_159,Finished Goods
+P160,Product_160,Raw Material
+P161,Product_161,Raw Material
+P162,Product_162,Finished Goods
+P163,Product_163,Finished Goods
+P164,Product_164,Raw Material
+P165,Product_165,Raw Material
+P166,Product_166,Component
+P167,Product_167,Raw Material
+P168,Product_168,Raw Material
+P169,Product_169,Finished Goods
+P170,Product_170,Finished Goods
+P171,Product_171,Raw Material
+P172,Product_172,Raw Material
+P173,Product_173,Finished Goods
+P174,Product_174,Finished Goods
+P175,Product_175,Component
+P176,Product_176,Finished Goods
+P177,Product_177,Finished Goods
+P178,Product_178,Component
+P179,Product_179,Raw Material
+P180,Product_180,Raw Material
+P181,Product_181,Raw Material
+P182,Product_182,Raw Material
+P183,Product_183,Component
+P184,Product_184,Finished Goods
+P185,Product_185,Finished Goods
+P186,Product_186,Finished Goods
+P187,Product_187,Finished Goods
+P188,Product_188,Finished Goods
+P189,Product_189,Finished Goods
+P190,Product_190,Raw Material
+P191,Product_191,Component
+P192,Product_192,Raw Material
+P193,Product_193,Raw Material
+P194,Product_194,Component
+P195,Product_195,Finished Goods
+P196,Product_196,Component
+P197,Product_197,Finished Goods
+P198,Product_198,Finished Goods
+P199,Product_199,Raw Material
+P200,Product_200,Finished Goods
+P201,Product_201,Raw Material
+P202,Product_202,Finished Goods
+P203,Product_203,Raw Material
+P204,Product_204,Component
+P205,Product_205,Component
+P206,Product_206,Finished Goods
+P207,Product_207,Finished Goods
+P208,Product_208,Raw Material
+P209,Product_209,Raw Material
+P210,Product_210,Finished Goods
+P211,Product_211,Finished Goods
+P212,Product_212,Finished Goods
+P213,Product_213,Raw Material
+P214,Product_214,Raw Material
+P215,Product_215,Finished Goods
+P216,Product_216,Component
+P217,Product_217,Raw Material
+P218,Product_218,Finished Goods
+P219,Product_219,Component
+P220,Product_220,Raw Material
+P221,Product_221,Component
+P222,Product_222,Component
+P223,Product_223,Component
+P224,Product_224,Component
+P225,Product_225,Raw Material
+P226,Product_226,Raw Material
+P227,Product_227,Raw Material
+P228,Product_228,Component
+P229,Product_229,Finished Goods
+P230,Product_230,Raw Material
+P231,Product_231,Raw Material
+P232,Product_232,Finished Goods
+P233,Product_233,Finished Goods
+P234,Product_234,Raw Material
+P235,Product_235,Raw Material
+P236,Product_236,Finished Goods
+P237,Product_237,Finished Goods
+P238,Product_238,Raw Material
+P239,Product_239,Finished Goods
+P240,Product_240,Component
+P241,Product_241,Finished Goods
+P242,Product_242,Finished Goods
+P243,Product_243,Finished Goods
+P244,Product_244,Component
+P245,Product_245,Component
+P246,Product_246,Raw Material
+P247,Product_247,Raw Material
+P248,Product_248,Raw Material
+P249,Product_249,Raw Material
+P250,Product_250,Raw Material
+P251,Product_251,Raw Material
+P252,Product_252,Finished Goods
+P253,Product_253,Raw Material
+P254,Product_254,Component
+P255,Product_255,Raw Material
+P256,Product_256,Raw Material
+P257,Product_257,Finished Goods
+P258,Product_258,Component
+P259,Product_259,Component
+P260,Product_260,Component
+P261,Product_261,Raw Material
+P262,Product_262,Raw Material
+P263,Product_263,Raw Material
+P264,Product_264,Raw Material
+P265,Product_265,Component
+P266,Product_266,Raw Material
+P267,Product_267,Raw Material
+P268,Product_268,Raw Material
+P269,Product_269,Finished Goods
+P270,Product_270,Component
+P271,Product_271,Finished Goods
+P272,Product_272,Component
+P273,Product_273,Component
+P274,Product_274,Raw Material
+P275,Product_275,Raw Material
+P276,Product_276,Component
+P277,Product_277,Finished Goods
+P278,Product_278,Finished Goods
+P279,Product_279,Raw Material
+P280,Product_280,Component
+P281,Product_281,Finished Goods
+P282,Product_282,Finished Goods
+P283,Product_283,Raw Material
+P284,Product_284,Component
+P285,Product_285,Raw Material
+P286,Product_286,Raw Material
+P287,Product_287,Raw Material
+P288,Product_288,Finished Goods
+P289,Product_289,Finished Goods
+P290,Product_290,Raw Material
+P291,Product_291,Finished Goods
+P292,Product_292,Raw Material
+P293,Product_293,Raw Material
+P294,Product_294,Raw Material
+P295,Product_295,Component
+P296,Product_296,Raw Material
+P297,Product_297,Finished Goods
+P298,Product_298,Finished Goods
+P299,Product_299,Raw Material
+P300,Product_300,Component
+P301,Product_301,Component
+P302,Product_302,Finished Goods
+P303,Product_303,Finished Goods
+P304,Product_304,Component
+P305,Product_305,Raw Material
+P306,Product_306,Finished Goods
+P307,Product_307,Raw Material
+P308,Product_308,Finished Goods
+P309,Product_309,Finished Goods
+P310,Product_310,Raw Material
+P311,Product_311,Component
+P312,Product_312,Component
+P313,Product_313,Finished Goods
+P314,Product_314,Component
+P315,Product_315,Component
+P316,Product_316,Raw Material
+P317,Product_317,Raw Material
+P318,Product_318,Finished Goods
+P319,Product_319,Raw Material
+P320,Product_320,Raw Material
+P321,Product_321,Component
+P322,Product_322,Finished Goods
+P323,Product_323,Finished Goods
+P324,Product_324,Raw Material
+P325,Product_325,Finished Goods
+P326,Product_326,Component
+P327,Product_327,Finished Goods
+P328,Product_328,Component
+P329,Product_329,Component
+P330,Product_330,Component
+P331,Product_331,Raw Material
+P332,Product_332,Component
+P333,Product_333,Finished Goods
+P334,Product_334,Component
+P335,Product_335,Component
+P336,Product_336,Raw Material
+P337,Product_337,Component
+P338,Product_338,Component
+P339,Product_339,Component
+P340,Product_340,Finished Goods
+P341,Product_341,Component
+P342,Product_342,Raw Material
+P343,Product_343,Component
+P344,Product_344,Raw Material
+P345,Product_345,Component
+P346,Product_346,Finished Goods
+P347,Product_347,Component
+P348,Product_348,Component
+P349,Product_349,Raw Material
+P350,Product_350,Raw Material
+P351,Product_351,Raw Material
+P352,Product_352,Raw Material
+P353,Product_353,Raw Material
+P354,Product_354,Finished Goods
+P355,Product_355,Raw Material
+P356,Product_356,Component
+P357,Product_357,Raw Material
+P358,Product_358,Raw Material
+P359,Product_359,Raw Material
+P360,Product_360,Finished Goods
+P361,Product_361,Component
+P362,Product_362,Raw Material
+P363,Product_363,Finished Goods
+P364,Product_364,Component
+P365,Product_365,Raw Material
+P366,Product_366,Component
+P367,Product_367,Component
+P368,Product_368,Raw Material
+P369,Product_369,Raw Material
+P370,Product_370,Component
+P371,Product_371,Component
+P372,Product_372,Component
+P373,Product_373,Finished Goods
+P374,Product_374,Raw Material
+P375,Product_375,Raw Material
+P376,Product_376,Component
+P377,Product_377,Raw Material
+P378,Product_378,Finished Goods
+P379,Product_379,Finished Goods
+P380,Product_380,Component
+P381,Product_381,Raw Material
+P382,Product_382,Raw Material
+P383,Product_383,Finished Goods
+P384,Product_384,Finished Goods
+P385,Product_385,Component
+P386,Product_386,Component
+P387,Product_387,Raw Material
+P388,Product_388,Component
+P389,Product_389,Component
+P390,Product_390,Finished Goods
+P391,Product_391,Raw Material
+P392,Product_392,Component
+P393,Product_393,Raw Material
+P394,Product_394,Raw Material
+P395,Product_395,Finished Goods
+P396,Product_396,Component
+P397,Product_397,Raw Material
+P398,Product_398,Finished Goods
+P399,Product_399,Component
+P400,Product_400,Raw Material
+P401,Product_401,Component
+P402,Product_402,Finished Goods
+P403,Product_403,Raw Material
+P404,Product_404,Finished Goods
+P405,Product_405,Component
+P406,Product_406,Finished Goods
+P407,Product_407,Finished Goods
+P408,Product_408,Raw Material
+P409,Product_409,Raw Material
+P410,Product_410,Finished Goods
+P411,Product_411,Component
+P412,Product_412,Component
+P413,Product_413,Raw Material
+P414,Product_414,Raw Material
+P415,Product_415,Raw Material
+P416,Product_416,Raw Material
+P417,Product_417,Finished Goods
+P418,Product_418,Component
+P419,Product_419,Component
+P420,Product_420,Finished Goods
+P421,Product_421,Finished Goods
+P422,Product_422,Raw Material
+P423,Product_423,Raw Material
+P424,Product_424,Component
+P425,Product_425,Component
+P426,Product_426,Raw Material
+P427,Product_427,Raw Material
+P428,Product_428,Raw Material
+P429,Product_429,Component
+P430,Product_430,Finished Goods
+P431,Product_431,Raw Material
+P432,Product_432,Raw Material
+P433,Product_433,Finished Goods
+P434,Product_434,Raw Material
+P435,Product_435,Component
+P436,Product_436,Component
+P437,Product_437,Finished Goods
+P438,Product_438,Finished Goods
+P439,Product_439,Raw Material
+P440,Product_440,Component
+P441,Product_441,Component
+P442,Product_442,Finished Goods
+P443,Product_443,Raw Material
+P444,Product_444,Raw Material
+P445,Product_445,Finished Goods
+P446,Product_446,Component
+P447,Product_447,Raw Material
+P448,Product_448,Finished Goods
+P449,Product_449,Component
+P450,Product_450,Component
+P451,Product_451,Raw Material
+P452,Product_452,Component
+P453,Product_453,Raw Material
+P454,Product_454,Finished Goods
+P455,Product_455,Component
+P456,Product_456,Finished Goods
+P457,Product_457,Finished Goods
+P458,Product_458,Raw Material
+P459,Product_459,Raw Material
+P460,Product_460,Finished Goods
+P461,Product_461,Raw Material
+P462,Product_462,Finished Goods
+P463,Product_463,Raw Material
+P464,Product_464,Finished Goods
+P465,Product_465,Component
+P466,Product_466,Component
+P467,Product_467,Component
+P468,Product_468,Raw Material
+P469,Product_469,Component
+P470,Product_470,Raw Material
+P471,Product_471,Raw Material
+P472,Product_472,Finished Goods
+P473,Product_473,Finished Goods
+P474,Product_474,Component
+P475,Product_475,Component
+P476,Product_476,Finished Goods
+P477,Product_477,Finished Goods
+P478,Product_478,Finished Goods
+P479,Product_479,Finished Goods
+P480,Product_480,Raw Material
+P481,Product_481,Finished Goods
+P482,Product_482,Finished Goods
+P483,Product_483,Finished Goods
+P484,Product_484,Raw Material
+P485,Product_485,Component
+P486,Product_486,Component
+P487,Product_487,Finished Goods
+P488,Product_488,Component
+P489,Product_489,Finished Goods
+P490,Product_490,Component
+P491,Product_491,Raw Material
+P492,Product_492,Finished Goods
+P493,Product_493,Raw Material
+P494,Product_494,Raw Material
+P495,Product_495,Component
+P496,Product_496,Component
+P497,Product_497,Component
+P498,Product_498,Finished Goods
+P499,Product_499,Component
+P500,Product_500,Raw Material
