@@ -166,8 +166,9 @@ This enables sustainability violations to be detected even when a process appear
 
 @ Authors
 
-Rudra Pratap Singh 
-Swastik
+Rudra Pratap Singh ,
+
+Swastik Vyas
 
 Manipal University Jaipur
 
