@@ -119,7 +119,11 @@ E0000003,O00001,S034,Delivery,2025-06-15 05:12:00,1.20,300,A,Road Freight,NONE
 
 ### Backend
 
-bash cd backend  python -m venv .venv  source .venv/bin/activate  pip install -r requirements.txt  uvicorn main:app --reload 
+bash cd backend  
+python -m venv .venv  s
+ource .venv/bin/activate  
+pip install -r requirements.txt  
+uvicorn main:app --reload 
 
 Backend URL:
 
@@ -127,7 +131,9 @@ http://localhost:8000
 
 @ Frontend
 
-bash cd dashboard  npm install  npm run dev 
+bash cd dashboard  
+npm install  
+npm run dev 
 
 Frontend URL:
 
