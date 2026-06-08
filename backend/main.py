@@ -1,31 +1,4 @@
-"""
-main.py  —  SustainOCPM FastAPI backend
 
-FIX LOG:
-  BUG-M1: /suppliers endpoint computed emission as
-           carbon_factor * EMISSION_FACTORS[activity], but carbon_factor
-           in the CSV IS already the per-event emission (not an intensity
-           multiplier). This inflated supplier emissions by up to 300x.
-           Fixed: total_emissions = sum(carbon_factor) directly.
-  BUG-M2: /violations endpoint showed carbon_count from compute_kpis()
-           when data was uploaded, but total from _build_violations_from_upload()
-           — these came from different counting methods, so the three sub-type
-           counts didn't add up to total. Fixed: always use compute_kpis() for
-           all counts when data is uploaded.
-  BUG-M3: EMISSION_FACTORS in main.py had "Freight Booking": 20 but token_replay.py
-           has 8. Unified to 8 everywhere.
-  BUG-M4: /carbon-fitness endpoint used a made-up budget=300, ignoring the
-           ORDER_BUDGET_TIERS. Fixed: default to standard tier (150 kg).
-  BUG-M5: /export-brsr-pdf computed scope3_kg using total_co2e * 71.1 / 100
-           but the denominator was in kg, then divided by 1000 → result was
-           off by factor of 1000. Fixed: keep as kg (no /1000 needed since
-           display already handles it).
-  BUG-M6: _build_violations_from_upload() accumulated emit_map as sum of
-           carbon_factor, which is correct, but then returned total_emissions
-           as a raw float that the UI rendered as total_emissions (not matching
-           the conformance endpoint which used total_emission without 's').
-           Fixed: key renamed to total_emission everywhere to match.
-"""
 
 from fastapi import FastAPI, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
