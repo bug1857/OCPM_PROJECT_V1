@@ -1,15 +1,4 @@
-"""
-conformance.py  –  Carbon-Aware Process Conformance Engine
-===========================================================
-Drop into:  backend/routes/conformance.py
-Register in app.py:  from routes.conformance import router as conformance_router
-                     app.include_router(conformance_router)
 
-Research contribution:
-  Dual-objective fitness = 0.5 * sequence_fitness + 0.5 * carbon_fitness
-  Traditional PM4Py-style conformance only checks sequence;
-  this system additionally penalises carbon-budget overruns.
-"""
 
 from __future__ import annotations
 
