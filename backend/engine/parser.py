@@ -1,37 +1,3 @@
-"""
-engine/parser.py
-Parses the SustainOCPM CSV event log into structured traces.
-
-CSV columns expected:
-  event_id, order_id, supplier_id, activity, timestamp,
-  carbon_factor, carbon_budget, supplier_rating,
-  transport_type, violation_type
-
-FIX LOG (all bugs corrected in this file):
-  BUG-P1: carbon_ok was double-gating on both total_emission<=carbon_budget AND
-           csv_carbon_violation, causing carbon_ok=False even when emission was
-           within budget simply because the CSV labelled the row. Fixed: use
-           CSV violation_type as authoritative when it says "carbon", otherwise
-           fall back to emission-vs-budget check.
-  BUG-P2: compute_kpis() carbon_viol and process_viol were independent sets —
-           an order could be counted in both, making violation_count <
-           carbon_viol + process_viol, which caused /kpis vs /violations count
-           mismatch. Fixed: violated_orders is the union; sub-type counts are
-           per-order using the same criteria.
-  BUG-P3: aggregate_stats() was counting seq_violations using BOTH
-           violation_type=="process" AND seq_fitness<1, adding them together —
-           that double-counted orders that had both labels. Fixed: one criterion
-           per order (seq_fitness < 1.0 for process, csv label for data).
-  BUG-P4: token_replay() had wrong fitness formula for the edge case when
-           consumed==0 (division-by-zero guard used 1 but remaining/1 would be
-           huge). Fixed: guard with max(consumed, 1) only when consumed==0 but
-           also cap the term to [0,1].
-  BUG-P5: NORMATIVE_SEQUENCE in parser.py included "Supplier Selection" but
-           conformance.py's NORMATIVE_SEQUENCE and token_replay.py's
-           EXPECTED_SEQUENCE did NOT — causing different missing-step lists
-           across endpoints. Fixed: unified to the canonical sequence used by
-           token_replay.py (the authoritative engine).
-"""
 
 import csv
 import io
