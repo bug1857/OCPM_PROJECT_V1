@@ -1,39 +1,4 @@
-"""
-engine/token_replay.py
-======================
-Real deterministic token replay engine for carbon-aware conformance checking.
 
-FIX LOG:
-  BUG-TR1: NORMATIVE_PLACES had overlapping allowed-activity sets between
-           adjacent places (e.g. p1_ordered allowed both "Supplier Selection"
-           AND "Goods Issue", AND p2_goods also allowed "Goods Issue") — a
-           token could be consumed at the wrong place, making fitness unstable
-           for different orderings of the same activities. Fixed: places now
-           have non-overlapping sets; "Supplier Selection" is treated as
-           optional (not a model place).
-  BUG-TR2: token_replay() fitness formula — when consumed==0 the term
-           0.5*(1 - remaining/consumed) blows up. Original guarded with
-           max(consumed,1) but 'remaining' could equal 'produced', making the
-           term -large and clamping to 0. Fixed: use (produced+consumed)/
-           (produced+consumed+missing+remaining) — the correct PM4Py formula.
-  BUG-TR3: carbon_fitness used order_budget (the per-ORDER total), but the
-           step-level cf_step used CARBON_BUDGETS[act] (per-activity). These
-           two scales are incompatible — the step bars in the UI showed
-           per-activity fitness while the overall score used per-order budget.
-           Fixed: step cf_step now uses per-ACTIVITY budget (for the timeline
-           display); overall carbon_fitness uses order_budget (for the
-           dual-objective score). Both are clearly labelled.
-  BUG-TR4: green_reroute() inserted best_transport TWICE when "Warehouse
-           Transfer" appeared in the list (once via replace, once via insert).
-           Deduplication by consecutive check didn't catch non-consecutive
-           duplicates. Fixed: build the path from EXPECTED_SEQUENCE directly,
-           replacing transport placeholder, then deduplicate by set-seen.
-  BUG-TR5: EMISSION_FACTORS["Freight Booking"] was 8.0 in token_replay but
-           20.0 in conformance.py's CARBON_BUDGETS and 20.0 in main.py's
-           EMISSION_FACTORS — three different values for the same activity.
-           Fixed: unified to 8.0 here (lowest, most conservative) and
-           CARBON_BUDGETS["Freight Booking"] set to 20.0 (the budget cap).
-"""
 
 from __future__ import annotations
 from typing import Optional
