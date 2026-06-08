@@ -48,15 +48,17 @@ export default function Violations() {
   })
 
   const worstViolation = data?.violations?.reduce((a, b) =>
-    (a?.total_emissions || 0) > (b?.total_emissions || 0) ? a : b,
+    (a?.total_emission || a?.total_emissions || 0) > (b?.total_emission || b?.total_emissions || 0) ? a : b,
     null
   )
 
+  // BUG-F1 FIX: avgFitness is now explicitly labeled as page-level average only
   const avgFitness = data?.violations?.length
     ? (data.violations.reduce((s, v) => s + (Number(v.carbon_fitness) || 0), 0) / data.violations.length) || 0
     : 0
 
   const passRate = Math.round(avgFitness * 100)
+  const isFiltered = !!(vtype || supId)
 
   return (
     <>
@@ -123,7 +125,7 @@ export default function Violations() {
                 {passRate}%
               </div>
               <div className="card-meta">
-                Avg carbon fitness across current page of violations
+                Avg carbon fitness — current page {isFiltered ? "(filtered)" : ""}
               </div>
             </div>
           </div>
@@ -147,10 +149,10 @@ export default function Violations() {
                     Supplier {worstViolation.supplier_id}
                   </div>
                   <div style={{ marginTop:8, color:'var(--t4)' }}>
-                    Emission: {Number(worstViolation.total_emissions || 0).toLocaleString()} kg CO₂e
+                    Emission: {Number(worstViolation.total_emission ?? worstViolation.total_emissions ?? 0).toLocaleString()} kg CO₂e
                   </div>
                   <div style={{ marginTop:8, color:'var(--t4)', fontWeight:700 }}>
-                    Overshoot: +{(worstViolation.total_emissions - worstViolation.budget).toFixed(1)} kg
+                    Overshoot: +{(worstViolation.total_emissions - (worstViolation.budget ?? worstViolation.carbon_budget ?? 0)).toFixed(1)} kg
                   </div>
                 </>
               )}
@@ -158,11 +160,11 @@ export default function Violations() {
 
             <div style={{ marginTop:24, padding:'14px', border:'1px solid var(--b1)', borderRadius:10 }}>
               <div style={{ fontSize:28, fontWeight:800, color:'var(--t1)' }}>
-                {worstViolation ? `${worstViolation.budget} kg` : '—'}
+                {worstViolation ? `${worstViolation.budget ?? worstViolation.carbon_budget ?? '—'} kg` : '—'}
               </div>
               <div className="card-meta">
                 {worstViolation
-                  ? `Budget exceeded by ${(worstViolation.total_emissions - worstViolation.budget).toFixed(1)} kg CO₂e`
+                  ? `Budget exceeded by ${(worstViolation.total_emissions - (worstViolation.budget ?? worstViolation.carbon_budget ?? 0)).toFixed(1)} kg CO₂e`
                   : 'No violation data available'}
               </div>
             </div>
@@ -213,16 +215,16 @@ export default function Violations() {
                   <tr key={v.order_id}>
                     <td style={{ color: 'var(--t2)', fontWeight: 700 }}>{v.order_id}</td>
                     <td>{v.supplier_id}</td>
-                    <td style={{ color: 'var(--t2)' }}>{v.total_emissions.toLocaleString()}</td>
-                    <td style={{ color: 'var(--t4)' }}>{v.budget}</td>
+                    <td style={{ color: 'var(--t2)' }}>{Number(v.total_emissions || 0).toLocaleString()}</td>
+                    <td style={{ color: 'var(--t4)' }}>{v.budget ?? v.carbon_budget ?? '—'}</td>
                     <td style={{
                       color:
-                        (v.total_emissions - v.budget) > 500
+                        (v.total_emissions - (v.budget ?? v.carbon_budget ?? 0)) > 500
                           ? 'var(--t4)'
-                          : (v.total_emissions - v.budget) > 200
+                          : (v.total_emissions - (v.budget ?? v.carbon_budget ?? 0)) > 200
                           ? 'var(--t3)'
                           : 'var(--t2)'
-                    }}>+{(v.total_emissions - v.budget).toFixed(1)}</td>
+                    }}>+{(v.total_emissions - (v.budget ?? v.carbon_budget ?? 0)).toFixed(1)}</td>
                     <td style={{ color: fitnessColor(v.carbon_fitness), fontWeight: 700 }}>
                       {v.carbon_fitness.toFixed(3)}
                     </td>

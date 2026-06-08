@@ -126,16 +126,17 @@ export default function BRSR() {
   )
 
   // ── derived metrics ────────────────────────────────────────────────────────
-  const complianceRate  = kpis.compliance_pct ?? 0
-const totalCO2e       = kpis.total_co2e_kg  ?? 0
-const avgEmission     = kpis.avg_emission_kg ?? 0
-const violations      = kpis.violations      ?? 0
-const totalOrders     = kpis.total_orders    ?? 0
-// carbonFitness: kpis returns compliance_pct as %, conf returns avg_carbon_fitness as 0-1
-// use kpis compliance as fitness proxy when conf not loaded from real data
-const carbonFitness   = conf.avg_carbon_fitness > 0.02
-  ? conf.avg_carbon_fitness
-  : (kpis.compliance_pct ?? 0) / 100
+  // All KPI numbers sourced from /kpis (compute_kpis) — same as Cockpit and Violations
+  const complianceRate  = kpis.compliance_pct  ?? 0
+  const totalCO2e       = kpis.total_co2e_kg   ?? 0
+  const avgEmission     = kpis.avg_emission_kg ?? 0
+  const violations      = kpis.violations       ?? 0
+  const totalOrders     = kpis.total_orders     ?? 0
+  // BUG-F5 FIX: don't substitute compliance_rate for carbon_fitness — they're different metrics.
+  // If carbon_fitness data is unavailable, show 0 rather than a misleading proxy.
+  const carbonFitness   = (conf?.avg_carbon_fitness > 0 && conf?.avg_carbon_fitness <= 1)
+    ? conf.avg_carbon_fitness
+    : 0
   const airPct          = trans?.breakdown?.find(b => b.transport_type === 'Air Freight')?.pct_of_total ?? 50
   const seaPct          = trans?.breakdown?.find(b => b.transport_type === 'Sea Freight')?.pct_of_total ?? 20
   const eRatedCount     = sups?.suppliers?.filter(s => s.rating === 'E').length ?? 0
@@ -236,7 +237,7 @@ const carbonFitness   = conf.avg_carbon_fitness > 0.02
             { label: 'Total Orders',      val: totalOrders.toLocaleString(),           color: 'var(--t2)' },
             { label: 'Compliance Rate',   val: complianceRate.toFixed(1) + '%',         color: 'var(--t2)' },
             { label: 'Total CO₂e',        val: (totalCO2e / 1000).toFixed(0) + 'k kg', color: 'var(--t2)' },
-            { label: 'Carbon Violations', val: violations.toLocaleString(),              color: 'var(--t2)' },
+            { label: 'Total Violations',  val: violations.toLocaleString(),              color: 'var(--t2)' },
             { label: 'Carbon Fitness',    val: (carbonFitness * 100).toFixed(1) + '%',  color: 'var(--t2)' },
           ].map(k => (
             <div key={k.label} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '12px 14px' }}>

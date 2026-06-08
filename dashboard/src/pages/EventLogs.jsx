@@ -125,12 +125,12 @@ export default function EventLogs() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>
           {[
-            { label: 'Traces',          val: stats.total_traces?.toLocaleString() },
-            { label: 'Carbon Violations',val: stats.carbon_violations?.toLocaleString(), warn: true },
-            { label: 'Process Violations', val: (stats.process_violations ?? stats.seq_violations)?.toLocaleString(), warn: true },
-            { label: 'Compliance',      val: stats.compliance_rate + '%' },
-            { label: 'Avg CO₂ Fitness', val: stats.avg_carbon_fitness?.toFixed(3) },
-            { label: 'Total CO₂e',      val: (stats.total_emission / 1000).toFixed(1) + 'k kg' },
+            { label: 'Traces',            val: (stats.total_traces ?? 0).toLocaleString() },
+            { label: 'Carbon Violations',  val: (stats.carbon_violations ?? 0).toLocaleString(), warn: true },
+            { label: 'Process Violations', val: ((stats.process_violations ?? stats.seq_violations) ?? 0).toLocaleString(), warn: true },
+            { label: 'Compliance',         val: ((stats.compliance_rate ?? stats.compliance_pct ?? 0)).toFixed(1) + '%' },
+            { label: 'Avg CO₂ Fitness',   val: (stats.avg_carbon_fitness ?? 0).toFixed(3) },
+            { label: 'Total CO₂e',        val: ((stats.total_emission ?? 0) / 1000).toFixed(1) + 'k kg' },
           ].map(k => (
             <div className="kpi" key={k.label} style={{ borderColor: 'var(--b1)' }}>
               <div className="kpi-label">{k.label}</div>
@@ -279,7 +279,7 @@ export default function EventLogs() {
               <span style={{ color: 'var(--t4)', width: 28 }}>{i + 1}.</span>
               <span style={{ color: 'var(--t2)', width: 180, fontWeight: 600 }}>{e.activity}</span>
               <span style={{ color: 'var(--t4)', flex: 1 }}>{e.timestamp}</span>
-              <span style={{ color: e.carbon_factor > 100 ? 'var(--t4)' : e.carbon_factor > 30 ? 'var(--t3)' : 'var(--t3)', width: 80, textAlign: 'right' }}>
+              <span style={{ color: e.carbon_factor > 4.0 ? 'var(--t4)' : e.carbon_factor > 2.0 ? 'var(--t3)' : 'var(--t2)', width: 80, textAlign: 'right' }}>
                 {e.carbon_factor} kg
               </span>
               {e.violation_type && e.violation_type.toUpperCase() !== 'NONE' && e.violation_type.trim() !== '' && (

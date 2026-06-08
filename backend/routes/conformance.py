@@ -90,7 +90,11 @@ GREEN_POLICY_RULES = [
         "rule_id":    "POLICY-01",
         "name":       "Air Freight Absolute Ban",
         "description": "Air Freight is forbidden for all order types.",
-        "triggered":  lambda ctx: ctx["transport"] in FORBIDDEN_TRANSPORT,
+        # Check both the resolved transport activity AND the raw transport_type column value
+        "triggered":  lambda ctx: (
+            ctx["transport"] in FORBIDDEN_TRANSPORT
+            or "AIR" in str(ctx.get("transport_type_col", "")).upper()
+        ),
         "severity":   "CRITICAL",
         "fix":        "Reroute via Sea Freight (saves ~83 % CO₂e) or Road Freight.",
     },
@@ -583,14 +587,18 @@ def _build_trace_record(row, sup_lookup, order_type, order_budget):
         "Unknown"
     )
     has_duplicates = len(trace_acts) != len(set(trace_acts))
+    # Include raw transport_type column so POLICY-01 fires even when
+    # "Air Freight" doesn't appear as an activity in the trace_acts list
+    raw_transport_type_col = str(row.get("transport_used") or row.get("transport_type") or "")
     policy_ctx = {
-        "transport":       transport_used,
-        "supplier_rating": rating,
-        "order_type":      order_type,
-        "carbon_fitness":  carbon_fit,
-        "missing_steps":   missing,
-        "has_duplicates":  has_duplicates,
-        "sequence_fitness": seq_fit,
+        "transport":           transport_used,
+        "transport_type_col":  raw_transport_type_col,
+        "supplier_rating":     rating,
+        "order_type":          order_type,
+        "carbon_fitness":      carbon_fit,
+        "missing_steps":       missing,
+        "has_duplicates":      has_duplicates,
+        "sequence_fitness":    seq_fit,
     }
     policy_hits = _evaluate_policies(policy_ctx)
 
@@ -779,69 +787,58 @@ def conformance_check(
 
 @router.get("/summary")
 def conformance_summary():
-    """Aggregate conformance statistics for the Cockpit header KPIs."""
+    """Aggregate conformance statistics — single source of truth via compute_kpis."""
     try:
         from main import uploaded_summaries
         if uploaded_summaries:
-            vf = pd.DataFrame(uploaded_summaries)
-            use_uploaded = True
-        else:
-            vf = _read(OUT, "sustainability_violations.csv")
-            use_uploaded = False
+            from engine.parser import compute_kpis
+            kpis = compute_kpis(uploaded_summaries)
+            vf   = pd.DataFrame(uploaded_summaries)
+            avg_cf = round(float(vf["carbon_fitness"].mean()), 4) if "carbon_fitness" in vf.columns else 0.0
+            return {
+                "total_violations":    kpis["violation_count"],
+                "carbon_violations":   kpis["carbon_violations"],
+                "process_violations":  kpis["process_violations"],
+                "data_violations":     kpis["data_violations"],
+                "avg_carbon_fitness":  avg_cf,
+                "compliance_rate_pct": kpis["compliance_pct"],
+                "normative_model":     NORMATIVE_SEQUENCE,
+                "allowed_transport":   list(ALLOWED_TRANSPORT),
+                "carbon_budgets":      CARBON_BUDGETS,
+                "green_policy_rules":  [
+                    {"rule_id": r["rule_id"], "name": r["name"],
+                     "severity": r["severity"], "description": r["description"]}
+                    for r in GREEN_POLICY_RULES
+                ],
+            }
     except Exception:
+        pass
+
+    # Fallback: static CSV on disk
+    try:
         vf = _read(OUT, "sustainability_violations.csv")
-        use_uploaded = False
+    except HTTPException:
+        return {"error": "No data available"}
 
     if "violation_type" not in vf.columns:
         vf["violation_type"] = ""
 
-    # ── Violation counts ─────────────────────────────────────────────────────
-    # When using uploaded summaries, count only actual violations (not NONE)
-    if use_uploaded:
-        viol_mask     = vf["has_violation"] == True
-        viol_df       = vf[viol_mask]
-        total         = int(viol_mask.sum())
+    total         = len(vf)
+    carbon_viols  = int(vf["violation_type"].str.lower().str.contains("carbon",  na=False).sum())
+    process_viols = int(vf["violation_type"].str.lower().str.contains("process", na=False).sum())
+    data_viols    = int(vf["violation_type"].str.lower().str.contains("data",    na=False).sum())
+
+    emit_col = "total_emissions" if "total_emissions" in vf.columns else "total_emission"
+    budget_col = "budget" if "budget" in vf.columns else "carbon_budget"
+    if emit_col in vf.columns and budget_col in vf.columns:
+        avg_cf = float(vf.apply(
+            lambda r: min(1.0, float(r[budget_col]) / max(float(r[emit_col]), 1)), axis=1
+        ).mean())
+        compliant     = int((vf[emit_col] <= vf[budget_col]).sum())
+        compliance_rt = round(compliant / total * 100, 2) if total > 0 else 0.0
     else:
-        viol_df       = vf
-        total         = len(vf)
-
-    # Match normalised violation_type labels produced by parser.trace_summary
-    carbon_viols  = int(viol_df["violation_type"].str.lower().str.contains("carbon",  na=False).sum())
-    process_viols = int(viol_df["violation_type"].str.lower().str.contains("process", na=False).sum())
-    data_viols    = int(viol_df["violation_type"].str.lower().str.contains("data",    na=False).sum())
-
-    # If process_viols is 0 but we have seq_fitness data, derive from that
-    if process_viols == 0 and use_uploaded and "seq_fitness" in vf.columns:
-        process_viols = int((vf["seq_fitness"] < 1.0).sum())
-
-    # ── Fitness & compliance ─────────────────────────────────────────────────
-    if use_uploaded:
-        # uploaded_summaries already has pre-computed carbon_fitness per trace
-        if "carbon_fitness" in vf.columns and len(vf) > 0:
-            avg_cf        = round(float(vf["carbon_fitness"].mean()), 4)
-            # compliance: traces where carbon_ok=True
-            if "has_violation" in vf.columns:
-                compliant     = int((vf["has_violation"] == False).sum())
-                compliance_rt = round(compliant / len(vf) * 100, 2)
-            else:
-                compliance_rt = round((1 - len(viol_df) / len(vf)) * 100, 2)
-        else:
-            avg_cf        = 0.0
-            compliance_rt = 0.0
-    else:
-        # Static CSV: use total_emissions vs budget columns
-        if "total_emissions" in vf.columns and "budget" in vf.columns:
-            avg_cf = float(
-                vf.apply(
-                    lambda r: min(1.0, float(r["budget"]) / max(float(r["total_emissions"]), 1)),
-                    axis=1,
-                ).mean()
-            )
-            compliant     = int((vf["total_emissions"] <= vf["budget"]).sum())
-            compliance_rt = round(compliant / total * 100, 2) if total > 0 else 0.0
-        else:
-            avg_cf        = 0.0
-            compliance_rt = 0.0
+        avg_cf        = 0.0
+        compliance_rt = 0.0
 
     return {
         "total_violations":    total,
@@ -915,7 +912,7 @@ def conformance_trace(
     order_budget  = ORDER_BUDGET_TIERS.get(order_type, DEFAULT_ORDER_BUDGET)
 
     sid              = str(r.get("supplier_id", "UNKNOWN"))
-    actual_emit      = float(r.get("total_emissions", 0))
+    actual_emit      = float(r.get("total_emissions") or r.get("total_emission") or 0)
     raw_budget       = float(r.get("budget", order_budget))
     vtype            = str(r.get("violation_type", ""))
     rating           = str(sup_info.get("rating", "C"))

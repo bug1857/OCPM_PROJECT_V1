@@ -51,3 +51,12 @@ export const getEmissionAttribution = async () => {
 
 export const getProcessVariants = () =>
   api.get('/process-variants').then(r => r.data)
+
+export const getConformanceSummary = () =>
+  api.get('/conformance/summary').then(r => r.data)
+
+export const uploadCSV = (file) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post('/upload-csv', fd).then(r => r.data)
+}

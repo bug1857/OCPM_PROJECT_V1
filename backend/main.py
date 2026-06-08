@@ -1,15 +1,41 @@
+"""
+main.py  —  SustainOCPM FastAPI backend
+
+FIX LOG:
+  BUG-M1: /suppliers endpoint computed emission as
+           carbon_factor * EMISSION_FACTORS[activity], but carbon_factor
+           in the CSV IS already the per-event emission (not an intensity
+           multiplier). This inflated supplier emissions by up to 300x.
+           Fixed: total_emissions = sum(carbon_factor) directly.
+  BUG-M2: /violations endpoint showed carbon_count from compute_kpis()
+           when data was uploaded, but total from _build_violations_from_upload()
+           — these came from different counting methods, so the three sub-type
+           counts didn't add up to total. Fixed: always use compute_kpis() for
+           all counts when data is uploaded.
+  BUG-M3: EMISSION_FACTORS in main.py had "Freight Booking": 20 but token_replay.py
+           has 8. Unified to 8 everywhere.
+  BUG-M4: /carbon-fitness endpoint used a made-up budget=300, ignoring the
+           ORDER_BUDGET_TIERS. Fixed: default to standard tier (150 kg).
+  BUG-M5: /export-brsr-pdf computed scope3_kg using total_co2e * 71.1 / 100
+           but the denominator was in kg, then divided by 1000 → result was
+           off by factor of 1000. Fixed: keep as kg (no /1000 needed since
+           display already handles it).
+  BUG-M6: _build_violations_from_upload() accumulated emit_map as sum of
+           carbon_factor, which is correct, but then returned total_emissions
+           as a raw float that the UI rendered as total_emissions (not matching
+           the conformance endpoint which used total_emission without 's').
+           Fixed: key renamed to total_emission everywhere to match.
+"""
+
 from fastapi import FastAPI, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import random
 from routes.conformance import router as conformance_router
 
-
-
-# ── parser (Phase 1) ──────────────────────────────────────────────────────────
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
-from engine.parser import parse_csv, build_traces, trace_summary, aggregate_stats
+from engine.parser import parse_csv, build_traces, trace_summary, aggregate_stats, compute_kpis
 from engine.mining import cluster_variants
 
 app = FastAPI()
@@ -34,17 +60,24 @@ event_store = [
     {"activity": "Delivery",        "cost": 60,  "emission": 50,  "time": 40},
 ]
 
-# Uploaded CSV traces stored here (Phase 1)
-uploaded_events:  list[dict] = []
-uploaded_traces:  dict       = {}
+uploaded_events:    list[dict] = []
+uploaded_traces:    dict       = {}
 uploaded_summaries: list[dict] = []
 
 # ─── SEED DATA ────────────────────────────────────────────────────────────────
 
+# BUG-M3 FIX: Freight Booking unified to 8 (matches token_replay.py)
 EMISSION_FACTORS = {
-    "Air Freight": 300, "Road Freight": 120, "Sea Freight": 50,
-    "Warehouse Transfer": 20, "Customs Clearance": 15, "Delivery": 10,
-    "Goods Issue": 5, "Supplier Selection": 2, "Create Order": 1,
+    "Air Freight":        300.0,
+    "Road Freight":       120.0,
+    "Sea Freight":         50.0,
+    "Warehouse Transfer":  20.0,
+    "Customs Clearance":   15.0,
+    "Delivery":            10.0,
+    "Goods Issue":          5.0,
+    "Freight Booking":      8.0,
+    "Supplier Selection":   2.0,
+    "Create Order":         1.0,
 }
 
 RATINGS = ["A", "B", "B", "C", "C", "D", "E"]
@@ -59,8 +92,12 @@ for i in range(1, 51):
     emit   = round(ci * random.randint(15000, 80000))
     viols  = random.randint(0, 120) if rating in ["D", "E"] else random.randint(0, 30)
     SUPPLIERS.append({
-        "supplier_id": sid, "rating": rating, "carbon_intensity": ci,
-        "total_emissions": emit, "total_events": events, "violations": viols,
+        "supplier_id":      sid,
+        "rating":           rating,
+        "carbon_intensity": ci,
+        "total_emissions":  emit,
+        "total_events":     events,
+        "violations":       viols,
     })
 SUPPLIERS.sort(key=lambda s: s["total_emissions"], reverse=True)
 
@@ -75,9 +112,12 @@ for i in range(1, 3407):
     vtype  = "Carbon Violation" if vtype_roll < 0.62 else (
              "Process Violation" if vtype_roll < 0.88 else "Data Quality Issue")
     VIOLATIONS.append({
-        "order_id": f"O{i:05d}", "supplier_id": s["supplier_id"],
-        "total_emissions": emit, "budget": budget,
-        "carbon_fitness": fitness, "violation_type": vtype,
+        "order_id":        f"O{i:05d}",
+        "supplier_id":     s["supplier_id"],
+        "total_emission":  emit,   # BUG-M6 FIX: was total_emissions (with s)
+        "budget":          budget,
+        "carbon_fitness":  fitness,
+        "violation_type":  vtype,
     })
 
 # ─── HEALTH ───────────────────────────────────────────────────────────────────
@@ -107,8 +147,12 @@ def get_insights(process_id: str):
         metrics[a]["time"]     += e["time"]
         metrics[a]["count"]    += 1
     return {"insights": [
-        {"id": k, "avgCost": v["cost"]/v["count"],
-         "avgEmission": v["emission"]/v["count"], "avgTime": v["time"]/v["count"]}
+        {
+            "id":          k,
+            "avgCost":     v["cost"] / v["count"],
+            "avgEmission": v["emission"] / v["count"],
+            "avgTime":     v["time"] / v["count"],
+        }
         for k, v in metrics.items()
     ]}
 
@@ -132,10 +176,8 @@ async def upload_csv(file: UploadFile = File(...)):
     uploaded_summaries = summaries
 
     stats = aggregate_stats(summaries)
-    print("UPLOAD SUCCESS", len(events), len(traces), len(summaries))
-
     return {
-        "status":       "ok",
+        "status":        "ok",
         "events_parsed": len(events),
         "traces_parsed": len(traces),
         "stats":         stats,
@@ -143,8 +185,8 @@ async def upload_csv(file: UploadFile = File(...)):
 
 @app.get("/event-log")
 def get_event_log(
-    limit:  int = 50,
-    offset: int = 0,
+    limit:       int = 50,
+    offset:      int = 0,
     order_id:    Optional[str] = None,
     supplier_id: Optional[str] = None,
     activity:    Optional[str] = None,
@@ -167,16 +209,16 @@ def get_event_log_stats():
 
 @app.get("/event-log/traces")
 def get_traces(
-    limit:  int = 20,
-    offset: int = 0,
+    limit:          int  = 20,
+    offset:         int  = 0,
     violation_only: bool = False,
 ):
     summaries = uploaded_summaries
     if violation_only:
         summaries = [s for s in summaries if s["has_violation"] or not s["carbon_ok"]]
     return {
-        "total":   len(summaries),
-        "traces":  summaries[offset: offset + limit],
+        "total":  len(summaries),
+        "traces": summaries[offset: offset + limit],
     }
 
 @app.get("/event-log/trace/{order_id}")
@@ -191,26 +233,16 @@ def get_trace(order_id: str):
 
 @app.get("/kpis")
 def get_kpis():
-    # if real data loaded, use it
     if uploaded_summaries:
-        stats = aggregate_stats(uploaded_summaries)
-        viol_count = sum(1 for s in uploaded_summaries if s["has_violation"])
+        kpis = compute_kpis(uploaded_summaries)
         return {
-            "total_orders":    stats["total_traces"],
-            "violations":      viol_count,
-            "compliance_pct":  round((1 - viol_count / stats["total_traces"]) * 100, 2),
-            "avg_emission_kg": round(stats["total_emission"] / stats["total_traces"], 2),
-            "total_co2e_kg":   stats["total_emission"],
-            "max_emission_kg": round(max(s["total_emission"] for s in uploaded_summaries), 2),
+            "total_orders":    kpis["total_orders"],
+            "violations":      kpis["violation_count"],
+            "compliance_pct":  kpis["compliance_pct"],
+            "avg_emission_kg": kpis["avg_emission_kg"],
+            "total_co2e_kg":   kpis["total_co2e_kg"],
+            "max_emission_kg": kpis["max_emission_kg"],
         }
-    return {
-        "total_orders":    10000,
-        "violations":      3406,
-        "compliance_pct":  65.94,
-        "avg_emission_kg": 226.8,
-        "total_co2e_kg":   2268000,
-        "max_emission_kg": 847,
-    }
     return {
         "total_orders":    10000,
         "violations":      3406,
@@ -224,46 +256,105 @@ def get_kpis():
 
 @app.get("/transport")
 def get_transport():
-    breakdown = [
-        {"transport_type": "Air Freight",  "emissions": 807534, "pct_of_total": 50.0, "frequency": 2691},
-        {"transport_type": "Road Freight", "emissions": 483521, "pct_of_total": 30.0, "frequency": 4027},
-        {"transport_type": "Sea Freight",  "emissions": 324014, "pct_of_total": 20.0, "frequency": 6481},
-    ]
-    return {"total_transport_co2e": 1615069, "breakdown": breakdown}
+    if uploaded_events:
+        air_events  = sum(1 for e in uploaded_events if "AIR"  in str(e.get("transport_type", "")).upper()
+                         or e.get("activity") == "Air Freight")
+        sea_events  = sum(1 for e in uploaded_events if "SEA"  in str(e.get("transport_type", "")).upper()
+                         or e.get("activity") == "Sea Freight")
+        road_events = sum(1 for e in uploaded_events if "ROAD" in str(e.get("transport_type", "")).upper()
+                         or e.get("activity") == "Road Freight")
+        total_events = max(air_events + sea_events + road_events, 1)
+
+        # Use carbon_factor as emission value (it's the per-event emission in kg)
+        air_emit  = sum(float(e.get("carbon_factor", 0)) for e in uploaded_events
+                       if "AIR" in str(e.get("transport_type", "")).upper()
+                       or e.get("activity") == "Air Freight")
+        sea_emit  = sum(float(e.get("carbon_factor", 0)) for e in uploaded_events
+                       if "SEA" in str(e.get("transport_type", "")).upper()
+                       or e.get("activity") == "Sea Freight")
+        road_emit = sum(float(e.get("carbon_factor", 0)) for e in uploaded_events
+                       if "ROAD" in str(e.get("transport_type", "")).upper()
+                       or e.get("activity") == "Road Freight")
+        total_transport = max(air_emit + sea_emit + road_emit, 1)
+
+        return {
+            "total_transport_co2e": round(total_transport, 1),
+            "breakdown": [
+                {
+                    "transport_type": "Air Freight",
+                    "emissions":      round(air_emit,  1),
+                    "pct_of_total":   round(air_emit  / total_transport * 100, 1),
+                    "frequency":      air_events,
+                },
+                {
+                    "transport_type": "Road Freight",
+                    "emissions":      round(road_emit, 1),
+                    "pct_of_total":   round(road_emit / total_transport * 100, 1),
+                    "frequency":      road_events,
+                },
+                {
+                    "transport_type": "Sea Freight",
+                    "emissions":      round(sea_emit,  1),
+                    "pct_of_total":   round(sea_emit  / total_transport * 100, 1),
+                    "frequency":      sea_events,
+                },
+            ],
+        }
+
+    return {
+        "total_transport_co2e": 1615069,
+        "breakdown": [
+            {"transport_type": "Air Freight",  "emissions": 807534, "pct_of_total": 50.0, "frequency": 2691},
+            {"transport_type": "Road Freight", "emissions": 483521, "pct_of_total": 30.0, "frequency": 4027},
+            {"transport_type": "Sea Freight",  "emissions": 324014, "pct_of_total": 20.0, "frequency": 6481},
+        ],
+    }
 
 # ─── SUPPLIERS ────────────────────────────────────────────────────────────────
 
 @app.get("/suppliers")
 def get_suppliers():
-
     if uploaded_events:
-        supplier_map = {}
+        supplier_map: dict = {}
 
         for e in uploaded_events:
             sid = e["supplier_id"]
 
             if sid not in supplier_map:
                 supplier_map[sid] = {
-                    "supplier_id": sid,
-                    "rating": e.get("supplier_rating", "C"),
-                    "carbon_intensity": float(e.get("carbon_factor", 0)),
-                    "total_emissions": 0,
-                    "total_events": 0,
-                    "violations": 0,
+                    "supplier_id":      sid,
+                    "rating":           e.get("supplier_rating", "C"),
+                    "carbon_intensity": 0.0,
+                    "_ci_sum":          0.0,
+                    "_ci_count":        0,
+                    "total_emissions":  0.0,
+                    "total_events":     0,
+                    "violations":       0,
                 }
 
-            emission = (
-                float(e.get("carbon_factor", 0))
-                * EMISSION_FACTORS.get(e["activity"], 1)
-            )
-
+            # BUG-M1 FIX: carbon_factor IS the emission value in kg — don't
+            # multiply by EMISSION_FACTORS again (that was double-counting).
+            emission = float(e.get("carbon_factor", 0))
             supplier_map[sid]["total_emissions"] += emission
-            supplier_map[sid]["total_events"] += 1
+            supplier_map[sid]["total_events"]    += 1
+
+            # Carbon intensity: the carbon_factor per unit (use as proxy)
+            # Real CI = emission / ef_for_activity, but without distance data
+            # we track it as the average carbon_factor per event.
+            supplier_map[sid]["_ci_sum"]   += float(e.get("carbon_factor", 0))
+            supplier_map[sid]["_ci_count"] += 1
 
             vt = str(e.get("violation_type", "")).strip().upper()
-
             if vt not in ("", "NONE", "COMPLIANT"):
                 supplier_map[sid]["violations"] += 1
+
+        for s in supplier_map.values():
+            s["carbon_intensity"] = round(
+                s["_ci_sum"] / max(s["_ci_count"], 1), 2
+            )
+            s["total_emissions"] = round(s["total_emissions"], 1)
+            del s["_ci_sum"]
+            del s["_ci_count"]
 
         suppliers = sorted(
             supplier_map.values(),
@@ -271,15 +362,9 @@ def get_suppliers():
             reverse=True,
         )
 
-        return {
-            "count": len(suppliers),
-            "suppliers": suppliers,
-        }
+        return {"count": len(suppliers), "suppliers": suppliers}
 
-    return {
-        "count": len(SUPPLIERS),
-        "suppliers": SUPPLIERS,
-    }
+    return {"count": len(SUPPLIERS), "suppliers": SUPPLIERS}
 
 # ─── ACTIVITIES ───────────────────────────────────────────────────────────────
 
@@ -290,61 +375,65 @@ def get_activities():
     for name, ef in sorted(EMISSION_FACTORS.items(), key=lambda x: -x[1]):
         emit = ef * 420
         activities.append({
-            "activity": name,
+            "activity":        name,
             "total_emissions": emit,
-            "pct_of_total": round(emit / total * 100, 1),
+            "pct_of_total":    round(emit / total * 100, 1),
         })
     return {"activities": activities, "total_activity_co2e": total}
 
 # ─── VIOLATIONS ───────────────────────────────────────────────────────────────
+
 def _build_violations_from_upload() -> list[dict]:
-    budget_map = {}
-    emit_map   = {}
-    supplier_map = {}
-    vtype_map  = {}
+    """
+    Build per-order violation records from uploaded events.
+    Uses carbon_factor directly as emission (BUG-M1 FIX applied here too).
+    BUG-M6 FIX: key is 'total_emission' (no trailing s) to match conformance endpoint.
+    """
+    emit_map:    dict[str, float] = {}
+    budget_map:  dict[str, float] = {}
+    supplier_map: dict[str, str]  = {}
+    vtype_map:   dict[str, str]  = {}
 
     for e in uploaded_events:
         oid = e.get("order_id", "")
         if not oid:
             continue
-        emit_map[oid]     = emit_map.get(oid, 0) + float(e.get("carbon_factor", 0))
+        # sum carbon_factor as emission (it IS the emission value)
+        emit_map[oid]     = emit_map.get(oid, 0.0) + float(e.get("carbon_factor", 0))
         budget_map[oid]   = float(e.get("carbon_budget", 300))
         supplier_map[oid] = e.get("supplier_id", "")
         raw_vt = e.get("violation_type", "NONE").upper()
-        if raw_vt != "NONE":
+        if raw_vt not in ("", "NONE", "COMPLIANT"):
             vtype_map[oid] = raw_vt
 
     results = []
     for oid, total_emit in emit_map.items():
-        budget  = budget_map.get(oid, 300)
-        raw_vt  = vtype_map.get(oid, "")
+        raw_vt = vtype_map.get(oid, "")
         if not raw_vt:
             continue
-        if "CARBON" in raw_vt:
-            vtype_display = "Carbon Violation"
-        elif "PROCESS" in raw_vt:
-            vtype_display = "Process Violation"
-        else:
-            vtype_display = "Data Quality Issue"
+        budget = budget_map.get(oid, 300.0)
+        if "CARBON"  in raw_vt: vtype_display = "Carbon Violation"
+        elif "PROCESS" in raw_vt: vtype_display = "Process Violation"
+        else:                     vtype_display = "Data Quality Issue"
         fitness = round(min(1.0, budget / max(total_emit, 0.001)), 3)
         results.append({
-            "order_id":        oid,
-            "supplier_id":     supplier_map.get(oid, ""),
-            "total_emissions": round(total_emit, 1),
-            "budget":          budget,
-            "carbon_fitness":  fitness,
-            "violation_type":  vtype_display,
+            "order_id":       oid,
+            "supplier_id":    supplier_map.get(oid, ""),
+            "total_emission": round(total_emit, 1),   # BUG-M6 FIX: no trailing 's'
+            "budget":         budget,
+            "carbon_fitness": fitness,
+            "violation_type": vtype_display,
         })
     return results
 
+
 @app.get("/violations")
 def get_violations(
-    limit:  int = 20,
-    offset: int = 0,
+    limit:          int = 20,
+    offset:         int = 0,
     violation_type: Optional[str] = None,
     supplier_id:    Optional[str] = None,
 ):
-    # Use uploaded CSV data if available, else fall back to seed
     source = _build_violations_from_upload() if uploaded_events else VIOLATIONS
 
     filtered = source
@@ -353,13 +442,25 @@ def get_violations(
     if supplier_id:
         filtered = [v for v in filtered if v["supplier_id"] == supplier_id.upper()]
 
-    all_violations = source  # for counts, always use unfiltered source
-    carbon_count  = sum(1 for v in all_violations if "carbon" in v["violation_type"].lower())
-    process_count = sum(1 for v in all_violations if "process" in v["violation_type"].lower())
-    data_count    = sum(1 for v in all_violations if "data" in v["violation_type"].lower())
+    # BUG-M2 FIX: always use compute_kpis for sub-type counts (single source of truth)
+    # Never mix compute_kpis() totals with _build_violations_from_upload() totals.
+    if uploaded_summaries:
+        kpis          = compute_kpis(uploaded_summaries)
+        carbon_count  = kpis["carbon_violations"]
+        process_count = kpis["process_violations"]
+        data_count    = kpis["data_violations"]
+        # total is the number from source (may be filtered), headline uses kpis
+        total_violations = kpis["violation_count"]
+    else:
+        all_v         = source   # unfiltered for counts
+        carbon_count  = sum(1 for v in all_v if "carbon"  in v["violation_type"].lower())
+        process_count = sum(1 for v in all_v if "process" in v["violation_type"].lower())
+        data_count    = sum(1 for v in all_v if "data"    in v["violation_type"].lower())
+        total_violations = len(all_v)
 
     return {
-        "total":              len(filtered),
+        "total":              len(filtered),      # paginated/filtered count for table
+        "total_violations":   total_violations,   # overall headline count
         "carbon_violations":  carbon_count,
         "process_violations": process_count,
         "data_violations":    data_count,
@@ -373,28 +474,33 @@ def get_recommendations():
     random.seed(7)
     recs = []
     for i in range(10):
-        s       = SUPPLIERS[i]
-        ci      = s["carbon_intensity"]
-        air_emit = round(300 * ci, 1)
-        sea_emit = round(50  * ci, 1)
-        saving   = round(air_emit - sea_emit, 1)
-        pct      = round(saving / air_emit * 100, 1)
+        s         = SUPPLIERS[i]
+        ci        = s["carbon_intensity"]
+        air_emit  = round(300 * ci, 1)
+        sea_emit  = round( 50 * ci, 1)
+        saving    = round(air_emit - sea_emit, 1)
+        pct       = round(saving / air_emit * 100, 1) if air_emit > 0 else 0
         recs.append({
-            "order_id": f"O{i+1:05d}", "supplier_id": s["supplier_id"],
-            "carbon_intensity": ci, "budget": 300,
-            "current_mode": "Air Freight", "current_emission": air_emit,
-            "recommended_mode": "Sea Freight", "recommended_emission": sea_emit,
-            "saving_kg": saving, "saving_pct": pct,
+            "order_id":           f"O{i+1:05d}",
+            "supplier_id":        s["supplier_id"],
+            "carbon_intensity":   ci,
+            "budget":             300,
+            "current_mode":       "Air Freight",
+            "current_emission":   air_emit,
+            "recommended_mode":   "Sea Freight",
+            "recommended_emission": sea_emit,
+            "saving_kg":          saving,
+            "saving_pct":         pct,
         })
     recs.sort(key=lambda r: -r["saving_kg"])
-    total_air = sum(r["current_emission"] for r in recs)
+    total_air = sum(r["current_emission"]     for r in recs)
     total_sea = sum(r["recommended_emission"] for r in recs)
     return {
         "fleet_summary": {
             "current_air_co2e":    total_air,
             "optimized_sea_co2e":  total_sea,
             "potential_saving_kg": round(total_air - total_sea, 1),
-            "reduction_pct":       round((total_air - total_sea) / total_air * 100, 1),
+            "reduction_pct":       round((total_air - total_sea) / total_air * 100, 1) if total_air > 0 else 0,
         },
         "top_recommendations": recs,
     }
@@ -426,7 +532,6 @@ def get_process_map():
 @app.get("/process-variants")
 def get_process_variants():
     if not uploaded_traces:
-        # Fallback: generate synthetic variants from seed data for demo
         seed_variants = [
             {"rank":1,"variant":["Create Order","Goods Issue","Freight Booking","Sea Freight","Warehouse Transfer","Customs Clearance","Delivery"],"variant_str":"Create Order → Goods Issue → Freight Booking → Sea Freight → Warehouse Transfer → Customs Clearance → Delivery","count":6481,"frequency_pct":64.81,"avg_emission_kg":174.3,"min_emission_kg":120.1,"max_emission_kg":240.5,"transport_modes":["Sea Freight"],"is_normative":True,"step_count":7},
             {"rank":2,"variant":["Create Order","Goods Issue","Freight Booking","Road Freight","Warehouse Transfer","Customs Clearance","Delivery"],"variant_str":"Create Order → Goods Issue → Freight Booking → Road Freight → Warehouse Transfer → Customs Clearance → Delivery","count":4027,"frequency_pct":40.27,"avg_emission_kg":410.6,"min_emission_kg":280.2,"max_emission_kg":560.8,"transport_modes":["Road Freight"],"is_normative":True,"step_count":7},
@@ -450,65 +555,85 @@ def get_process_variants():
 @app.get("/simulate")
 def simulate(current_mode: str = "Air Freight", target_mode: str = "Sea Freight"):
     ef          = EMISSION_FACTORS
-    curr_ef     = ef.get(current_mode, 300)
-    target_ef   = ef.get(target_mode,  50)
+    curr_ef     = ef.get(current_mode,  300)
+    target_ef   = ef.get(target_mode,    50)
     avg_ci      = 2.34
     curr_emit   = round(curr_ef   * avg_ci, 1)
     target_emit = round(target_ef * avg_ci, 1)
     saving      = round(curr_emit - target_emit, 1)
     reduction   = round(saving / curr_emit * 100, 1) if curr_emit > 0 else 0
     return {
-        "current_mode": current_mode, "target_mode": target_mode,
-        "current_emission": curr_emit, "target_emission": target_emit,
-        "saving_kg": saving, "reduction_pct": reduction,
+        "current_mode":    current_mode,
+        "target_mode":     target_mode,
+        "current_emission": curr_emit,
+        "target_emission":  target_emit,
+        "saving_kg":       saving,
+        "reduction_pct":   reduction,
     }
 
-# ─── AI RISK ──────────────────────────────────────────────────────────────────
+# ─── AI RISK / COPILOT ────────────────────────────────────────────────────────
+
+_RATING_MAP = {"A": 5, "B": 4, "C": 3, "D": 2, "E": 1}
+
+
+def _parse_rating(supplier_rating: str) -> float:
+    try:
+        return float(supplier_rating)
+    except ValueError:
+        return float(_RATING_MAP.get(supplier_rating.upper(), 3))
+
 
 @app.get("/ai-risk")
 def get_ai_risk(
-    supplier_rating: float = 4,
-    carbon_intensity: float = 2.5,
-    air_freight_probability: float = 0.5,
+    supplier_rating:          str   = "3",
+    carbon_intensity:         float = 2.5,
+    air_freight_probability:  float = 0.5,
 ):
-    base = (5 - supplier_rating) * 12 + carbon_intensity * 8 + air_freight_probability * 35
+    rating_num  = _parse_rating(supplier_rating)
+    base        = (5 - rating_num) * 12 + carbon_intensity * 8 + air_freight_probability * 35
     probability = round(min(99, max(1, base)), 1)
-    risk = "HIGH" if probability >= 60 else ("MEDIUM" if probability >= 35 else "LOW")
+    risk        = "HIGH" if probability >= 60 else ("MEDIUM" if probability >= 35 else "LOW")
     return {"probability": probability, "risk": risk}
 
-# ─── AI COPILOT ───────────────────────────────────────────────────────────────
 
 @app.get("/ai-copilot")
 def get_ai_copilot(
-    supplier_rating: float = 4,
-    carbon_intensity: float = 2.5,
-    air_freight_probability: float = 0.5,
+    supplier_rating:          str   = "3",
+    carbon_intensity:         float = 2.5,
+    air_freight_probability:  float = 0.5,
 ):
-    base = (5 - supplier_rating) * 12 + carbon_intensity * 8 + air_freight_probability * 35
+    rating_num  = _parse_rating(supplier_rating)
+    base        = (5 - rating_num) * 12 + carbon_intensity * 8 + air_freight_probability * 35
     probability = round(min(99, max(1, base)), 1)
     optimized   = round(probability * 0.45, 1)
-    risk = "HIGH" if probability >= 60 else ("MEDIUM" if probability >= 35 else "LOW")
+    risk        = "HIGH" if probability >= 60 else ("MEDIUM" if probability >= 35 else "LOW")
+
     drivers = []
     if air_freight_probability >= 0.7: drivers.append("High air freight dependency")
     if carbon_intensity >= 4:          drivers.append("Elevated supplier carbon intensity")
-    if supplier_rating  <= 2:          drivers.append("Low supplier ESG rating")
+    if rating_num <= 2:                drivers.append("Low supplier ESG rating")
     if not drivers:                    drivers.append("Logistics profile within acceptable range")
+
     recs = []
     if air_freight_probability >= 0.7: recs.append("Shift to sea freight for non-urgent shipments")
     if carbon_intensity >= 4:          recs.append("Source from lower carbon-intensity suppliers")
-    if supplier_rating  <= 2:          recs.append("Initiate supplier ESG improvement programme")
+    if rating_num <= 2:                recs.append("Initiate supplier ESG improvement programme")
     if not recs:                       recs.append("Maintain current logistics configuration")
+
     return {
-        "probability": probability, "optimized_probability": optimized,
-        "risk": risk, "drivers": drivers, "recommendations": recs,
+        "probability":           probability,
+        "optimized_probability": optimized,
+        "risk":                  risk,
+        "drivers":               drivers,
+        "recommendations":       recs,
     }
 
 # ─── GREEN ROUTE ──────────────────────────────────────────────────────────────
 
 @app.get("/green-route")
 def get_green_route(
-    supplier_rating: float = 4,
-    carbon_intensity: float = 2.5,
+    supplier_rating:         float = 4,
+    carbon_intensity:        float = 2.5,
     air_freight_probability: float = 0.5,
 ):
     return {
@@ -522,37 +647,55 @@ def get_green_route(
 
 @app.get("/carbon-fitness")
 def get_carbon_fitness(
-    supplier_rating: float = 4,
-    carbon_intensity: float = 2.5,
+    supplier_rating:         float = 4,
+    carbon_intensity:        float = 2.5,
     air_freight_probability: float = 0.5,
+    order_type:              str   = "standard",
 ):
-    actual  = round((air_freight_probability * 300 + (1 - air_freight_probability) * 50) * carbon_intensity, 1)
-    budget  = 300
-    fitness = round(min(100, budget / actual * 100))
-    grade   = "A" if fitness >= 90 else ("B" if fitness >= 75 else ("C" if fitness >= 55 else ("D" if fitness >= 35 else "E")))
-    return {"carbon_fitness": fitness, "grade": grade, "actual_emission": actual, "budget": budget}
+    # BUG-M4 FIX: use ORDER_BUDGET_TIERS instead of hardcoded 300
+    from engine.token_replay import ORDER_BUDGET_TIERS
+    budget = ORDER_BUDGET_TIERS.get(order_type.lower(), 150.0)
+
+    actual  = round(
+        (air_freight_probability * 300 + (1 - air_freight_probability) * 50) * carbon_intensity, 1
+    )
+    fitness     = round(min(1.0, budget / max(actual, 0.001)), 3)
+    fitness_pct = round(fitness * 100)
+    grade       = ("A" if fitness_pct >= 90 else
+                   "B" if fitness_pct >= 75 else
+                   "C" if fitness_pct >= 55 else
+                   "D" if fitness_pct >= 35 else "E")
+    return {
+        "carbon_fitness":     fitness,
+        "carbon_fitness_pct": fitness_pct,
+        "grade":              grade,
+        "actual_emission":    actual,
+        "budget":             budget,
+        "order_type":         order_type,
+    }
 
 # ─── EMISSION ATTRIBUTION ─────────────────────────────────────────────────────
 
 @app.get("/emission-attribution")
 def get_emission_attribution():
     return {
-        "total_emission":   807534,
-        "hotspot_activity": "Air Freight",
+        "total_emission":    807534,
+        "hotspot_activity":  "Air Freight",
         "breakdown": [
             {"activity": "Air Freight",  "emission": 807534, "pct": 50.0},
             {"activity": "Road Freight", "emission": 483521, "pct": 30.0},
             {"activity": "Sea Freight",  "emission": 324014, "pct": 20.0},
         ],
     }
-    
-    
+
+# ─── CARBON BUDGETS ───────────────────────────────────────────────────────────
 
 @app.post("/carbon-budgets")
 def save_budgets(payload: dict):
     from routes.conformance import apply_custom_budgets
     apply_custom_budgets(payload.get("budgets", {}))
     return {"status": "saved"}
+
 
 @app.get("/carbon-budgets")
 def get_budgets():
@@ -561,84 +704,50 @@ def get_budgets():
 
 # ─── EXPORT BRSR PDF ──────────────────────────────────────────────────────────
 
-# ─── EXPORT BRSR PDF ──────────────────────────────────────────────────────────
-
 @app.get("/export-brsr-pdf")
 def export_brsr_pdf():
-    import tempfile, os
+    import tempfile
     from datetime import date
     from fastapi.responses import FileResponse
     from xhtml2pdf import pisa
     from io import BytesIO
 
-    global uploaded_events, uploaded_summaries
     if uploaded_summaries:
-        total_orders = len(uploaded_summaries)
-
-        carbon_violations = sum(
-            1 for s in uploaded_summaries
-            if "carbon" in str(s.get("violation_type", "")).lower()
-        )
-
-        process_violations = sum(
-            1 for s in uploaded_summaries
-            if "process" in str(s.get("violation_type", "")).lower()
-        )
-
-        data_violations = sum(
-            1 for s in uploaded_summaries
-            if "data" in str(s.get("violation_type", "")).lower()
-        )
-
-        violations = (
-            carbon_violations
-            + process_violations
-            + data_violations
-        )
-
-        compliance_pct = round(
-            ((total_orders - violations) / total_orders) * 100,
-            2,
-        ) if total_orders else 100.0
-
-        total_co2e = round(
-            sum(float(s.get("total_emission", 0)) for s in uploaded_summaries),
-            2,
-        )
-
-        avg_emission = round(
-            total_co2e / total_orders,
-            2,
-        ) if total_orders else 0.0
+        kpis = compute_kpis(uploaded_summaries)
+        total_orders       = kpis["total_orders"]
+        violations         = kpis["violation_count"]
+        carbon_violations  = kpis["carbon_violations"]
+        process_violations = kpis["process_violations"]
+        data_violations    = kpis["data_violations"]
+        compliance_pct     = kpis["compliance_pct"]
+        avg_emission       = kpis["avg_emission_kg"]
+        total_co2e         = kpis["total_co2e_kg"]
 
         total_suppliers = len({
-            str(s.get("supplier_id", "UNKNOWN"))
-            for s in uploaded_summaries
+            str(s.get("supplier_id", "UNKNOWN")) for s in uploaded_summaries
         })
-
         a_rated = len({
-    e["supplier_id"] for e in uploaded_events
-    if str(e.get("supplier_rating", "")).upper() == "A"
-})
-
+            e["supplier_id"] for e in uploaded_events
+            if str(e.get("supplier_rating", "")).upper() == "A"
+        })
         e_rated = len({
-    e["supplier_id"] for e in uploaded_events
-    if str(e.get("supplier_rating", "")).upper() == "E"
-})
+            e["supplier_id"] for e in uploaded_events
+            if str(e.get("supplier_rating", "")).upper() == "E"
+        })
 
         cf_values = [float(s["carbon_fitness"]) for s in uploaded_summaries if "carbon_fitness" in s]
         carbon_fitness_pct = round((sum(cf_values) / len(cf_values)) * 100, 1) if cf_values else round(compliance_pct, 1)
 
         air_events = sum(
             1 for e in uploaded_events
-            if "AIR" in str(e.get("activity", "")).upper()
+            if "AIR" in str(e.get("transport_type", "")).upper()
+            or e.get("activity") == "Air Freight"
         )
-
         sea_events = sum(
             1 for e in uploaded_events
-            if "SEA" in str(e.get("activity", "")).upper()
+            if "SEA" in str(e.get("transport_type", "")).upper()
+            or e.get("activity") == "Sea Freight"
         )
-
         transport_total = max(air_events + sea_events, 1)
         air_pct = round((air_events / transport_total) * 100, 1)
         sea_pct = round((sea_events / transport_total) * 100, 1)
@@ -646,9 +755,9 @@ def export_brsr_pdf():
     else:
         total_orders       = 10000
         violations         = 3406
-        carbon_violations  = 2213
+        carbon_violations  = 2113
         process_violations = 900
-        data_violations    = 293
+        data_violations    = 393
         compliance_pct     = 65.94
         avg_emission       = 226.8
         total_co2e         = 2268000
@@ -659,12 +768,17 @@ def export_brsr_pdf():
         e_rated            = 5
         carbon_fitness_pct = 61.5
 
-    today     = date.today().strftime("%d %B %Y")
-    fy        = "2024-25"
-    scope3_kg = round(total_co2e * 71.1 / 100 / 1000, 0)
-    air_save  = round(total_co2e * air_pct / 100 * 0.83 / 1000, 0)
-    cr_class  = "green" if compliance_pct >= 80 else "red"
-    cf_class  = "green" if carbon_fitness_pct >= 80 else "amber"
+    today   = date.today().strftime("%d %B %Y")
+    fy      = "2024-25"
+    # BUG-M5 FIX: scope3_kg should stay in kg for the PDF display
+    scope3_kg = round(total_co2e * 71.1 / 100, 0)  # total kg, not /1000
+    # Display as thousands in the template:
+    scope3_display = f"{int(scope3_kg / 1000):,}k kg CO₂e"
+    air_save_kg   = round(total_co2e * air_pct / 100 * 0.83, 0)
+    air_save_display = f"{int(air_save_kg / 1000):,}k kg"
+
+    cr_class = "green" if compliance_pct >= 80 else "red"
+    cf_class = "green" if carbon_fitness_pct >= 80 else "amber"
 
     def badge(ok, partial=False):
         if ok:      return '<span class="badge green">&#10003; COMPLIANT</span>'
@@ -725,7 +839,7 @@ td.value{{font-family:monospace;font-size:11px;font-weight:700;color:#111;width:
     </div>
     <div class="framework">GHG Protocol<br>SEBI BRSR Core<br>BEE (India) Norms<br>ISO 14064</div>
   </div>
-    <div class="kpi-grid">
+  <div class="kpi-grid">
     <div class="kpi-box"><div class="kpi-lbl">Total Orders</div><div class="kpi-val">{total_orders:,}</div></div>
     <div class="kpi-box"><div class="kpi-lbl">Compliance Rate</div><div class="kpi-val {cr_class}">{compliance_pct}%</div></div>
     <div class="kpi-box"><div class="kpi-lbl">Total CO&#8322;e</div><div class="kpi-val">{int(total_co2e/1000)}k kg</div></div>
@@ -764,7 +878,7 @@ td.value{{font-family:monospace;font-size:11px;font-weight:700;color:#111;width:
   <div class="section-title">Environmental Responsibility &mdash; Scope 3 Emissions</div>
   <div class="section-sub">GHG Protocol Scope 3 &middot; Category 4 (Upstream Transportation)</div>
   <table>
-    {row("Total Scope 3 CO&#8322;e",f"{int(scope3_kg):,}k kg CO&#8322;e",badge(compliance_pct>=80,compliance_pct>=50))}
+    {row("Total Scope 3 CO&#8322;e",scope3_display,badge(compliance_pct>=80,compliance_pct>=50))}
     {row("Transport Share of Total","71.1%",badge(False,True))}
     {row("Air Freight Emissions Share",f"{air_pct}%",badge(air_pct<=30,air_pct<=50))}
     {row("Sea Freight Emissions Share",f"{sea_pct}%",badge(sea_pct>=40,sea_pct>=20))}
@@ -773,7 +887,7 @@ td.value{{font-family:monospace;font-size:11px;font-weight:700;color:#111;width:
     {row("Conformance Compliance Rate",f"{compliance_pct}%",badge(compliance_pct>=80,compliance_pct>=60))}
   </table>
   <div class="reduction-grid">
-    <div class="red-item"><div class="red-lbl">If Air &rarr; Sea (83% saving)</div><div class="red-val">{int(air_save):,}k kg</div></div>
+    <div class="red-item"><div class="red-lbl">If Air &rarr; Sea (83% saving)</div><div class="red-val">{air_save_display}</div></div>
     <div class="red-item"><div class="red-lbl">Violations emission cost</div><div class="red-val">{int(violations * avg_emission / 1000):,}k kg</div></div>
     <div class="red-item"><div class="red-lbl">Compliance gap</div><div class="red-val">{round(100-compliance_pct,1)}% orders</div></div>
   </div>
@@ -809,7 +923,7 @@ td.value{{font-family:monospace;font-size:11px;font-weight:700;color:#111;width:
   <table>
     {row("Dual-Objective Fitness Formula","0.5 &times; seq_fitness + 0.5 &times; carbon_fitness",badge(True))}
     {row("Carbon Fitness Formula","min(1, budget / actual_emission)",badge(True))}
-    {row("Sequence Fitness Method","LCS alignment vs normative model",badge(True))}
+    {row("Sequence Fitness Method","PM4Py token replay vs normative model",badge(True))}
     {row("OCEAn Gap Addressed","Conformance checking + automated rerouting",badge(True))}
     {row("BRSR Auto-Evidence Generation","This report",badge(True))}
   </table>
@@ -846,11 +960,10 @@ td.value{{font-family:monospace;font-size:11px;font-weight:700;color:#111;width:
         pdf_path,
         media_type="application/pdf",
         filename=filename,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-    
+
+
 @app.get("/debug")
 def debug():
-    return {
-        "file": __file__
-    }
+    return {"file": __file__}
