@@ -66,10 +66,8 @@ for i in range(1, NUM_ROWS + 1):
             "Road Freight"
         ])
 
-    # carbon_budget per order — set so Air Freight traces actually breach it
     carbon_budget = 20
 
-    # carbon_factor reflects transport intensity
     if transport_type == "Air Freight":
         carbon_factor = round(random.uniform(3.5, 5.0), 2)
     elif transport_type == "Road Freight":
@@ -79,8 +77,7 @@ for i in range(1, NUM_ROWS + 1):
     else:
         carbon_factor = round(random.uniform(0.5, 1.2), 2)
 
-    # violation_type must match the actual data:
-    # Air Freight with high carbon_factor will sum past budget=20 → Carbon
+ 
     violation_probability = random.random()
     if transport_type == "Air Freight" and carbon_factor > 3.0:
         violation_type = "Carbon"
