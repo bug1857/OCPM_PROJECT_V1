@@ -26,7 +26,6 @@ def cluster_variants(traces: dict) -> dict:
     variant_transport = defaultdict(set)
 
     for order_id, events in traces.items():
-        # Sort by timestamp to get canonical sequence
         sorted_events = sorted(events, key=lambda e: e.get("timestamp", ""))
         variant = tuple(e["activity"] for e in sorted_events)
         total_emit = sum(float(e.get("carbon_factor", 0)) for e in sorted_events)
